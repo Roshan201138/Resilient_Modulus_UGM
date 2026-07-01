@@ -28,7 +28,7 @@ TARGET_NAME = "ResilientModulus_MPa"
 TARGET_LABEL = "Resilient modulus"
 TARGET_UNIT = "MPa"
 
-APP_DIR = Path(__file__).resolve().parenta
+APP_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_DIR = APP_DIR / "models"
 MODEL_CACHE_DIR = APP_DIR / ".model_cache"
 
