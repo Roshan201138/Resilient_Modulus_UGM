@@ -1,0 +1,12 @@
+streamlit==1.35.0
+numpy==1.23.5
+scipy==1.10.1
+pandas==1.5.3
+scikit-learn==1.2.2
+joblib==1.2.0
+tensorflow==2.10.0
+xgboost==1.7.6
+lightgbm==4.3.0
+matplotlib==3.7.1
+openpyxl==3.1.2
+protobuf==3.20.3
