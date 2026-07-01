@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 
 
 APP_TITLE = "APP for resilient modulus prediction"
-DEVELOPERS = "Developed by: Mohammad Jawed Roshan"
+DEVELOPERS = "Developed by: Mohammad Jawed Roshan, António Gomes Correia, Ionut Dragos Moldovan, Miguel Azenha"
 
 TARGET_NAME = "ResilientModulus_MPa"
 TARGET_LABEL = "Resilient modulus"
