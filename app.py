@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import io
+import os
 import re
 import sys
 import types
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
+from urllib.request import urlretrieve
 
 import joblib
 import numpy as np
@@ -19,7 +22,7 @@ import matplotlib.pyplot as plt
 
 
 APP_TITLE = "APP for resilient modulus prediction"
-DEVELOPERS = "Developed by: Mohammad Jawed Roshan, António Gomes Correia, Ionut Dragos Moldovan, Miguel Azenha"
+DEVELOPERS = "Developed by: Mohammad Jawed Roshan"
 
 TARGET_NAME = "ResilientModulus_MPa"
 TARGET_LABEL = "Resilient modulus"
@@ -27,6 +30,21 @@ TARGET_UNIT = "MPa"
 
 APP_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_DIR = APP_DIR / "models"
+MODEL_CACHE_DIR = APP_DIR / ".model_cache"
+
+# When models are stored as GitHub Release assets, set this in Streamlit Secrets:
+# GITHUB_RELEASE_BASE_URL = "https://github.com/<user>/<repo>/releases/download/v1.0"
+DEFAULT_GITHUB_RELEASE_BASE_URL = ""
+
+MODEL_FILENAMES = [
+    "KNN_search.joblib",
+    "SVR_search.joblib",
+    "Random_Forest_search.joblib",
+    "DT_search.joblib",
+    "LightGBM_search.joblib",
+    "XGBoost_search.joblib",
+    "ANN_search.joblib",
+]
 
 DEFAULT_FEATURES = [
     "Confining_pressure",
@@ -307,6 +325,66 @@ def discover_joblib_files(model_dir: Path) -> list[Path]:
     if not model_dir.exists() or not model_dir.is_dir():
         return []
     return sorted(path for path in model_dir.glob("*.joblib") if not is_excluded_model_file(path))
+
+
+def get_secret_or_env(name: str, default: str = "") -> str:
+    """Read a setting from Streamlit secrets first, then environment variables."""
+    try:
+        value = st.secrets.get(name, "")
+        if value:
+            return str(value).strip()
+    except Exception:
+        pass
+    return str(os.environ.get(name, default)).strip()
+
+
+def normalize_release_base_url(url: str) -> str:
+    return str(url or "").strip().rstrip("/")
+
+
+def release_asset_url(base_url: str, filename: str) -> str:
+    return f"{normalize_release_base_url(base_url)}/{quote(filename)}"
+
+
+def download_file(url: str, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = destination.with_suffix(destination.suffix + ".download")
+    if temp_path.exists():
+        temp_path.unlink()
+    urlretrieve(url, temp_path)
+    temp_path.replace(destination)
+
+
+def ensure_models_from_release(base_url: str, filenames: list[str] | None = None) -> tuple[Path, dict[str, str]]:
+    """Download missing model files from a GitHub Release into a local cache folder."""
+    filenames = filenames or MODEL_FILENAMES
+    base_url = normalize_release_base_url(base_url)
+    errors: dict[str, str] = {}
+
+    if not base_url:
+        return MODEL_CACHE_DIR, {
+            "GitHub Release URL": (
+                "Set GITHUB_RELEASE_BASE_URL in Streamlit Secrets, for example: "
+                "https://github.com/<user>/<repo>/releases/download/v1.0"
+            )
+        }
+
+    MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    progress = st.progress(0.0, text="Checking trained model files...")
+    total = max(1, len(filenames))
+    for i, filename in enumerate(filenames, start=1):
+        target = MODEL_CACHE_DIR / filename
+        if target.exists() and target.stat().st_size > 0:
+            progress.progress(i / total, text=f"Model available: {filename}")
+            continue
+        try:
+            progress.progress((i - 1) / total, text=f"Downloading {filename}...")
+            download_file(release_asset_url(base_url, filename), target)
+            progress.progress(i / total, text=f"Downloaded {filename}")
+        except Exception as exc:
+            errors[filename] = f"Could not download from {release_asset_url(base_url, filename)}. Details: {exc}"
+    progress.empty()
+    return MODEL_CACHE_DIR, errors
 
 
 @st.cache_resource(show_spinner=False)
@@ -974,12 +1052,24 @@ def main() -> None:
     page = st.sidebar.radio("Application mode", ["Trained ML models", "Empirical models"], index=0)
 
     if page == "Trained ML models":
-        model_folder = DEFAULT_MODEL_DIR if DEFAULT_MODEL_DIR.exists() else APP_DIR
-        loaded_models, errors = load_models_from_folder(str(model_folder))
+        st.sidebar.header("Model source")
+        release_url = get_secret_or_env("GITHUB_RELEASE_BASE_URL", DEFAULT_GITHUB_RELEASE_BASE_URL)
+        release_url = st.sidebar.text_input(
+            "GitHub Release asset base URL",
+            value=release_url,
+            placeholder="https://github.com/<user>/<repo>/releases/download/v1.0",
+            help="This folder-style URL is used only to download model files. It is not displayed in the prediction results.",
+        ).strip()
+
+        model_folder, download_errors = ensure_models_from_release(release_url)
+        loaded_models, load_errors = load_models_from_folder(str(model_folder))
+        errors = {**download_errors, **load_errors}
         render_model_loading_errors(errors)
+
         if not loaded_models:
-            st.error("No trained ML model could be loaded. Stacked/hybrid files are ignored intentionally.")
+            st.error("No trained ML model could be loaded. Check the GitHub Release URL and model asset filenames.")
             return
+
         st.sidebar.header("ML models")
         selected_names = st.sidebar.multiselect("Choose one or more models", list(loaded_models.keys()), default=list(loaded_models.keys())[:1])
         selected_bundles = {name: loaded_models[name] for name in selected_names}
