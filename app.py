@@ -876,20 +876,41 @@ def render_empirical_calibration(models_to_run: list[str]) -> tuple[dict[str, di
 
 
 def render_logos_and_header() -> None:
+    logo_dirs = [
+        APP_DIR / "assets" / "logos",
+        APP_DIR / "logos",
+    ]
+
     logo_candidates = []
-    for folder in [APP_DIR / "assets" / "logos", APP_DIR / "logos", APP_DIR / "logo", APP_DIR]:
+    valid_ext = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
+
+    for folder in logo_dirs:
         if folder.exists():
-            for ext in ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.svg"):
-                logo_candidates.extend(sorted(folder.glob(ext)))
-    # Avoid showing arbitrary model-related images if any; take files whose names contain logo first.
-    logo_candidates = sorted(set(logo_candidates), key=lambda p: ("logo" not in p.stem.lower(), p.name.lower()))[:4]
+            logo_candidates.extend(
+                sorted(
+                    [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in valid_ext],
+                    key=lambda p: p.name.lower()
+                )
+            )
+
+    logo_candidates = logo_candidates[:4]
+
     if logo_candidates:
-        cols = st.columns(4)
+        cols = st.columns(len(logo_candidates))
         for col, logo in zip(cols, logo_candidates):
             with col:
                 st.image(str(logo), width=230)
-    st.markdown(f"<h1 style='text-align:center; font-family:Times New Roman;'>{APP_TITLE}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align:center; font-family:Times New Roman; font-size:18px;'>{DEVELOPERS}</p>", unsafe_allow_html=True)
+    else:
+        st.warning("Logo files were not found. Please upload them to assets/logos/.")
+
+    st.markdown(
+        f"<h1 style='text-align:center; font-family:Times New Roman;'>{APP_TITLE}</h1>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<p style='text-align:center; font-family:Times New Roman; font-size:18px;'>{DEVELOPERS}</p>",
+        unsafe_allow_html=True,
+    )
     st.divider()
 
 
