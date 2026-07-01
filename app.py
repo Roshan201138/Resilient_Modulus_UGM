@@ -34,7 +34,9 @@ MODEL_CACHE_DIR = APP_DIR / ".model_cache"
 
 # When models are stored as GitHub Release assets, set this in Streamlit Secrets:
 # GITHUB_RELEASE_BASE_URL = "https://github.com/<user>/<repo>/releases/download/v1.0"
-DEFAULT_GITHUB_RELEASE_BASE_URL = ""
+DEFAULT_GITHUB_RELEASE_BASE_URL = (
+    "https://github.com/Roshan201138/Resilient_Modulus_UGM/releases/download/v1.0"
+)
 
 MODEL_FILENAMES = [
     "KNN_search.joblib",
