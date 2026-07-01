@@ -28,7 +28,7 @@ TARGET_NAME = "ResilientModulus_MPa"
 TARGET_LABEL = "Resilient modulus"
 TARGET_UNIT = "MPa"
 
-APP_DIR = Path(__file__).resolve().parent
+APP_DIR = Path(__file__).resolve().parenta
 DEFAULT_MODEL_DIR = APP_DIR / "models"
 MODEL_CACHE_DIR = APP_DIR / ".model_cache"
 
@@ -151,7 +151,7 @@ def friendly_load_error(filename: str, exc: Exception) -> str:
     if "could not locate class 'sequential'" in lower or "failed to restore serialized ann model" in lower or "keras" in lower or "protobuf" in lower:
         return (
             "Incompatible TensorFlow/Keras/protobuf environment for the ANN model. Use Python 3.10, tensorflow==2.10.0, "
-            "protobuf==3.20.3, and set PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python. "
+            "protobuf==3.19.6, and set PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python. "
             f"Details: {msg}"
         )
     return msg
@@ -655,7 +655,7 @@ def render_plots_for_predictions(results_df: pd.DataFrame, prediction_cols: list
             plt.close(fig2)
     if metrics_rows:
         st.subheader("Statistical metrics")
-        st.dataframe(round_numeric_df(pd.DataFrame(metrics_rows)), use_container_width=True, hide_index=True)
+        st.dataframe(round_numeric_df(pd.DataFrame(metrics_rows)), use_container_width=True)
 
 
 # -----------------------------------------------------------------------------
@@ -863,7 +863,7 @@ def render_empirical_calibration(models_to_run: list[str]) -> tuple[dict[str, di
         calib_df = read_table(calib_file)
         params, summary = calibrate_empirical_models(calib_df, models_to_run, pa)
         st.success("Empirical coefficients calibrated successfully.")
-        st.dataframe(round_numeric_df(summary), use_container_width=True, hide_index=True)
+        st.dataframe(round_numeric_df(summary), use_container_width=True)
 
         pred_df = empirical_predict(calib_df, models_to_run, params)
         calib_output = pd.concat([calib_df.reset_index(drop=True), pred_df.reset_index(drop=True)], axis=1)
@@ -931,7 +931,7 @@ def render_required_columns(feature_cols: list[str]) -> None:
             "Training min": [TRAINING_RANGES.get(c, (np.nan, np.nan))[0] for c in feature_cols],
             "Training max": [TRAINING_RANGES.get(c, (np.nan, np.nan))[1] for c in feature_cols],
         })
-        st.dataframe(round_numeric_df(info), use_container_width=True, hide_index=True)
+        st.dataframe(round_numeric_df(info), use_container_width=True)
 
 
 def render_single_ml_prediction(selected_bundles: dict[str, dict]) -> None:
@@ -953,7 +953,7 @@ def render_single_ml_prediction(selected_bundles: dict[str, dict]) -> None:
             display = pred_df.T.reset_index()
             display.columns = ["Model", f"Predicted {TARGET_LABEL} ({TARGET_UNIT})"]
             display["Model"] = display["Model"].str.replace(f"_Predicted_{TARGET_NAME}", "", regex=False)
-            st.dataframe(round_numeric_df(display), use_container_width=True, hide_index=True)
+            st.dataframe(round_numeric_df(display), use_container_width=True)
         except Exception as exc:
             st.error(str(exc))
 
@@ -1014,7 +1014,7 @@ def render_single_empirical_prediction(models_to_run: list[str], params: dict[st
         display = pred.T.reset_index()
         display.columns = ["Model", f"Predicted {TARGET_LABEL} ({TARGET_UNIT})"]
         display["Model"] = display["Model"].str.replace(f"_Predicted_{TARGET_NAME}", "", regex=False)
-        st.dataframe(round_numeric_df(display), use_container_width=True, hide_index=True)
+        st.dataframe(round_numeric_df(display), use_container_width=True)
 
 
 def render_batch_empirical_prediction(models_to_run: list[str], params: dict[str, dict[str, float]] | None, pa: float) -> None:
@@ -1046,7 +1046,7 @@ def render_batch_empirical_prediction(models_to_run: list[str], params: dict[str
                     raise ValueError("Upload a calibration dataset or include measured resilient modulus in the batch file for automatic calibration.")
                 run_params, summary = calibrate_empirical_models(data, models_to_run, pa)
                 st.success("Empirical coefficients calibrated from the uploaded batch dataset.")
-                st.dataframe(round_numeric_df(summary), use_container_width=True, hide_index=True)
+                st.dataframe(round_numeric_df(summary), use_container_width=True)
             pred_df = empirical_predict(data, models_to_run, run_params)
             output = pd.concat([data.reset_index(drop=True), pred_df.reset_index(drop=True)], axis=1)
             st.success(f"Predicted {len(output)} row(s).")
@@ -1075,14 +1075,9 @@ def main() -> None:
     page = st.sidebar.radio("Application mode", ["Trained ML models", "Empirical models"], index=0)
 
     if page == "Trained ML models":
-        st.sidebar.header("Model source")
+        # Model files are downloaded automatically from the configured GitHub Release.
+        # The URL is intentionally not shown in the user interface.
         release_url = get_secret_or_env("GITHUB_RELEASE_BASE_URL", DEFAULT_GITHUB_RELEASE_BASE_URL)
-        release_url = st.sidebar.text_input(
-            "GitHub Release asset base URL",
-            value=release_url,
-            placeholder="https://github.com/<user>/<repo>/releases/download/v1.0",
-            help="This folder-style URL is used only to download model files. It is not displayed in the prediction results.",
-        ).strip()
 
         model_folder, download_errors = ensure_models_from_release(release_url)
         loaded_models, load_errors = load_models_from_folder(str(model_folder))
