@@ -746,13 +746,23 @@ def k_theta_prediction(confining_pressure, deviator_stress, k1: float, k2: float
     return float(k1) * np.power(np.maximum(theta, 1e-12), float(k2))
 
 
-def uzan_prediction(confining_pressure, deviator_stress, k1: float, k2: float, k3: float) -> np.ndarray:
+def uzan_prediction(confining_pressure, deviator_stress, k1: float, k2: float, k3: float, pa: float) -> np.ndarray:
+    """Original Uzan model.
+
+    Mr = k1 * pa * (theta / pa)^k2 * (sigma_d / pa)^k3
+
+    where pa is atmospheric/reference pressure in the same stress unit as
+    confining_pressure and deviator_stress, theta = q + 3*sigma3, and
+    sigma_d = |q|.
+    """
     theta, _ = stress_terms(confining_pressure, deviator_stress)
     q = np.asarray(deviator_stress, dtype=float)
+    pa = max(float(pa), 1e-12)
     return (
         float(k1)
-        * np.power(np.maximum(theta, 1e-12), float(k2))
-        * np.power(np.maximum(np.abs(q), 1e-12), float(k3))
+        * pa
+        * np.power(np.maximum(theta / pa, 1e-12), float(k2))
+        * np.power(np.maximum(np.abs(q) / pa, 1e-12), float(k3))
     )
 
 
@@ -781,12 +791,13 @@ def calibrate_k_theta(df: pd.DataFrame) -> dict[str, float]:
     return {"k1": float(np.exp(beta[0])), "k2": float(beta[1])}
 
 
-def calibrate_uzan(df: pd.DataFrame) -> dict[str, float]:
+def calibrate_uzan(df: pd.DataFrame, pa: float) -> dict[str, float]:
     x, y = _standard_xy(df)
+    pa = max(float(pa), 1e-12)
     theta, _ = stress_terms(x["Confining_pressure"], x["Deviator_stress"])
     q = np.abs(x["Deviator_stress"].to_numpy(dtype=float))
-    beta = _log_linear_fit(y, [theta, q], 3, "Uzan model")
-    return {"k1": float(np.exp(beta[0])), "k2": float(beta[1]), "k3": float(beta[2])}
+    beta = _log_linear_fit(y, [theta / pa, q / pa], 3, "Uzan model")
+    return {"k1": float(np.exp(beta[0]) / pa), "k2": float(beta[1]), "k3": float(beta[2]), "pa": pa}
 
 
 def calibrate_mepdg(df: pd.DataFrame, pa: float) -> dict[str, float]:
@@ -809,7 +820,7 @@ def calibrate_empirical_models(df: pd.DataFrame, models_to_run: list[str], pa: f
         params["K-θ model"] = p
         rows.append({"Model": "K-θ model", **p})
     if "Uzan model" in models_to_run:
-        p = calibrate_uzan(df)
+        p = calibrate_uzan(df, pa)
         params["Uzan model"] = p
         rows.append({"Model": "Uzan model", **p})
     return params, pd.DataFrame(rows)
@@ -838,7 +849,7 @@ def empirical_predict(df: pd.DataFrame, models_to_run: list[str], params: dict[s
             raise ValueError("Uzan model coefficients are not calibrated yet.")
         p = params["Uzan model"]
         out[f"Uzan model_Predicted_{TARGET_NAME}"] = uzan_prediction(
-            x["Confining_pressure"], x["Deviator_stress"], p["k1"], p["k2"], p["k3"]
+            x["Confining_pressure"], x["Deviator_stress"], p["k1"], p["k2"], p["k3"], p["pa"]
         )
     return out
 
@@ -846,7 +857,7 @@ def empirical_predict(df: pd.DataFrame, models_to_run: list[str], params: dict[s
 def render_empirical_calibration(models_to_run: list[str]) -> tuple[dict[str, dict[str, float]] | None, float]:
     st.subheader("Empirical model calibration")
     pa = st.number_input(
-        "Reference pressure, Pa (same stress unit as confining/deviator stress)",
+        "Atmospheric/reference pressure, pₐ (kPa; use same stress unit as confining/deviator stress)",
         value=101.325,
         format="%.4f",
         key="emp_pa",
