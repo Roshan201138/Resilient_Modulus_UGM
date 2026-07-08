@@ -857,7 +857,7 @@ def empirical_predict(df: pd.DataFrame, models_to_run: list[str], params: dict[s
 def render_empirical_calibration(models_to_run: list[str]) -> tuple[dict[str, dict[str, float]] | None, float]:
     st.subheader("Empirical model calibration")
     pa = st.number_input(
-        "Atmospheric/reference pressure, pₐ (kPa; use same stress unit as confining/deviator stress)",
+        "Atmospheric/reference pressure, pₐ (kPa)",
         value=101.325,
         format="%.4f",
         key="emp_pa",
